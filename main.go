@@ -1,143 +1,170 @@
+// main.go
 package main
 
 import (
-	"flag"
 	"fmt"
+	"net/http"
 	"os"
+	"os/exec"
+	"strings"
+	"time"
 )
 
 func main() {
-	getinfoCmd := flag.NewFlagSet("getinfo", flag.ExitOnError)
-	installCmd := flag.NewFlagSet("install", flag.ExitOnError)
-	uninstallCmd := flag.NewFlagSet("uninstall", flag.ExitOnError)
-	screenshotCmd := flag.NewFlagSet("screenshot", flag.ExitOnError)
-	rebootCmd := flag.NewFlagSet("reboot", flag.ExitOnError)
-	launchCmd := flag.NewFlagSet("launch", flag.ExitOnError)
-	terminateCmd := flag.NewFlagSet("terminate", flag.ExitOnError)
-	listProcCmd := flag.NewFlagSet("list-processes", flag.ExitOnError)
-	killCmd := flag.NewFlagSet("kill", flag.ExitOnError)
-	batteryCmd := flag.NewFlagSet("battery", flag.ExitOnError)
-	lsCmd := flag.NewFlagSet("ls", flag.ExitOnError)
-	pingCmd := flag.NewFlagSet("ping", flag.ExitOnError)
-	
-	copyCmd := flag.NewFlagSet("copy", flag.ExitOnError)
-	pcFlag := copyCmd.String("pc", "", "Source file on PC to push to mobile")
-	mobileFlag := copyCmd.String("mobile", "", "Source file on mobile to pull to PC")
-
 	if len(os.Args) < 2 {
-		printUsage()
+		fmt.Println("Usage: wpctrl <command> [arguments]")
+		fmt.Println("Commands: ping, getinfo, install, list-apps, uninstall, launch, terminate, list-processes, kill, battery, ls, screenshot, reboot, copy")
 		os.Exit(1)
 	}
 
 	cmd := os.Args[1]
 	client := NewClient()
+
+	// Check if device responds to WDP (Windows Phone 8.1 / Windows 10 Mobile)
+	isWDPOnline := checkWDP(client)
+
+	if !isWDPOnline {
+		// Detect whether connected legacy device is Windows Phone 7.x or Windows Phone 8.0
+		isWP7 := detectWP7Device()
+
+		if isWP7 {
+			// Windows Phone 7.x Legacy Flow
+			switch cmd {
+			case "getinfo":
+				client.HandleWP7GetInfo()
+				return
+			default:
+				fmt.Printf("Error: Command '%s' is not supported.\n", cmd)
+				os.Exit(1)
+			}
+		} else {
+			// Windows Phone 8.0 Legacy Flow
+			switch cmd {
+			case "getinfo":
+				client.HandleWP8GetInfo()
+				return
+			case "ls":
+				loc := "\\"
+				if len(os.Args) >= 3 {
+					loc = os.Args[2]
+				}
+				client.HandleWP8Ls(loc)
+				return
+			case "copy":
+				if len(os.Args) < 4 {
+					fmt.Println("Error: Missing arguments for copy.")
+					fmt.Println("Usage (PC to WP8): wpctrl copy local_file.txt Documents\\file.txt")
+					os.Exit(1)
+				}
+				src := os.Args[2]
+				dest := os.Args[3]
+				client.HandleWP8CopyPC(src, dest)
+				return
+			default:
+				fmt.Printf("Error: Command '%s' requires WDP (WP8.1/W10M) or isn't a command.\n", cmd)
+				os.Exit(1)
+			}
+		}
+	}
+
+	// Standard WDP flow for WP8.1 / W10M
 	client.VerifyDeviceConnectionAndVersion(cmd)
 
 	switch cmd {
+	case "ping":
+		client.HandlePing()
 	case "getinfo":
-		getinfoCmd.Parse(os.Args[2:])
 		client.HandleGetInfo()
 	case "install":
-		installCmd.Parse(os.Args[2:])
-		args := installCmd.Args()
-		if len(args) < 1 {
-			fmt.Println("Error: Missing <file.appx> argument.")
+		if len(os.Args) < 3 {
+			fmt.Println("Error: Missing <appx-path> argument.")
 			os.Exit(1)
 		}
-		client.HandleInstall(args[0])
+		client.HandleInstall(os.Args[2])
 	case "list-apps":
 		client.HandleListApps()
 	case "uninstall":
-		uninstallCmd.Parse(os.Args[2:])
-		args := uninstallCmd.Args()
-		if len(args) < 1 {
-			fmt.Println("Error: Missing <PackageFullName> argument.")
+		if len(os.Args) < 3 {
+			fmt.Println("Error: Missing <package-full-name> argument.")
 			os.Exit(1)
 		}
-		client.HandleUninstall(args[0])
-	case "screenshot":
-		screenshotCmd.Parse(os.Args[2:])
-		args := screenshotCmd.Args()
-		if len(args) < 1 {
-			fmt.Println("Error: Missing <output.png> argument.")
-			os.Exit(1)
-		}
-		client.HandleScreenshot(args[0])
-	case "reboot":
-		rebootCmd.Parse(os.Args[2:])
-		client.HandleReboot()
+		client.HandleUninstall(os.Args[2])
 	case "launch":
-		launchCmd.Parse(os.Args[2:])
-		args := launchCmd.Args()
-		if len(args) < 1 {
-			fmt.Println("Error: Missing <AUMID> argument.")
+		if len(os.Args) < 3 {
+			fmt.Println("Error: Missing <aumid> argument.")
 			os.Exit(1)
 		}
-		client.HandleLaunch(args[0])
+		client.HandleLaunch(os.Args[2])
 	case "terminate":
-		terminateCmd.Parse(os.Args[2:])
-		args := terminateCmd.Args()
-		if len(args) < 1 {
-			fmt.Println("Error: Missing <AUMID> argument.")
+		if len(os.Args) < 3 {
+			fmt.Println("Error: Missing <aumid/family-name> argument.")
 			os.Exit(1)
 		}
-		client.HandleTerminate(args[0])
+		client.HandleTerminate(os.Args[2])
 	case "list-processes":
-		listProcCmd.Parse(os.Args[2:])
 		client.HandleListProcesses()
 	case "kill":
-		killCmd.Parse(os.Args[2:])
-		args := killCmd.Args()
-		if len(args) < 1 {
-			fmt.Println("Error: Missing <PID> argument.")
+		if len(os.Args) < 3 {
+			fmt.Println("Error: Missing <pid> argument.")
 			os.Exit(1)
 		}
-		client.HandleKill(args[0])
+		client.HandleKill(os.Args[2])
 	case "battery":
-		batteryCmd.Parse(os.Args[2:])
 		client.HandleBattery()
 	case "ls":
-		lsCmd.Parse(os.Args[2:])
-		args := lsCmd.Args()
-		if len(args) < 1 {
-			fmt.Println("Error: Missing <location> argument.")
+		loc := "\\"
+		if len(os.Args) >= 3 {
+			loc = os.Args[2]
+		}
+		client.HandleLs(loc)
+	case "screenshot":
+		out := "screenshot.png"
+		if len(os.Args) >= 3 {
+			out = os.Args[2]
+		}
+		client.HandleScreenshot(out)
+	case "reboot":
+		client.HandleReboot()
+	case "copy":
+		if len(os.Args) < 4 {
+			fmt.Println("Error: Missing arguments for copy.")
+			fmt.Println("Usage (PC to Phone): wpctrl copy local_file.txt \\Documents\\file.txt")
+			fmt.Println("Usage (Phone to PC): wpctrl copy \\Documents\\file.txt local_file.txt")
 			os.Exit(1)
 		}
-		client.HandleLs(args[0])
-	case "ping":
-		pingCmd.Parse(os.Args[2:])
-		client.HandlePing()
-	case "copy":
-		copyCmd.Parse(os.Args[2:])
-		args := copyCmd.Args()
-		if *pcFlag != "" && len(args) == 1 {
-			client.HandleCopyPC(*pcFlag, args[0])
-		} else if *mobileFlag != "" && len(args) == 1 {
-			client.HandleCopyMobile(*mobileFlag, args[0])
+		src := os.Args[2]
+		dest := os.Args[3]
+		if stringsHasPrefix(src, "\\") || stringsHasPrefix(src, "/") {
+			client.HandleCopyMobile(src, dest)
 		} else {
-			fmt.Println("Error: Invalid syntax. Use wpctrl copy --pc <src> <location> or wpctrl copy --mobile <src> <dest>")
-			os.Exit(1)
+			client.HandleCopyPC(src, dest)
 		}
 	default:
-		printUsage()
+		fmt.Printf("Error: Unknown command '%s'\n", cmd)
+		os.Exit(1)
 	}
 }
 
-func printUsage() {
-	fmt.Println("wpctrl commands:")
-	fmt.Println("  wpctrl getinfo")
-	fmt.Println("  wpctrl install <file.appx>")
-	fmt.Println("  wpctrl list-apps")
-	fmt.Println("  wpctrl uninstall <PackageFullName>")
-	fmt.Println("  wpctrl launch <AUMID>")
-	fmt.Println("  wpctrl terminate <AUMID>")
-	fmt.Println("  wpctrl list-processes")
-	fmt.Println("  wpctrl kill <PID>")
-	fmt.Println("  wpctrl battery")
-	fmt.Println("  wpctrl ls <location>")
-	fmt.Println("  wpctrl ping")
-	fmt.Println("  wpctrl screenshot <output.png>")
-	fmt.Println("  wpctrl reboot")
-	fmt.Println("  wpctrl copy --pc <filefrompc> <location-onwp>")
-	fmt.Println("  wpctrl copy --mobile <filefromwp> <localpath>")
+func checkWDP(c *Client) bool {
+	client := &http.Client{Timeout: 2 * time.Second}
+	resp, err := client.Get(c.BaseURL + "/api/control/deviceinfo")
+	if err != nil {
+		return false
+	}
+	defer resp.Body.Close()
+	return resp.StatusCode == http.StatusOK
+}
+
+func detectWP7Device() bool {
+	cmd := exec.Command("powershell", "-NoProfile", "-Command", 
+		"Get-PnpDevice -Present | Where-Object {$_.HardwareID -like '*Zune*' -or $_.FriendlyName -like '*Trophy*' -or $_.FriendlyName -like '*Focus*'} | Select-Object -ExpandProperty FriendlyName")
+	out, err := cmd.Output()
+	if err == nil && len(strings.TrimSpace(string(out))) > 0 {
+		return true
+	}
+	return false
+}
+
+func stringsHasPrefix(s, prefix string) bool {
+	return len(s) >= len(prefix) && s[0:len(prefix)] == prefix
 }
