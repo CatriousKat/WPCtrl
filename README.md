@@ -19,3 +19,13 @@ A tool for controlling Windows Phone OS 7.0 and newer. <br>
 | `list-processes` | ❌ | ❌ | ✅ |
 | `kill` | ❌ | ❌ | ✅ |
 | `screenshot` | ❌ | ❌ | ✅ |
+<br>
+# Usage
+<strong>Requirements</strong>:
+<li>A PC with Windows 10 or newer</li>
+<li>A Microsoft/Nokia Windows Phone with Windows Phone OS 7.0 or newer</li>
+1. Download all files
+2. Run `go build -o wpctrl.exe` in the current directory
+3. Plug in your Windows Phone device
+4. Run `wpctrl <command>` in the current directory
+If it errors, you must use the commands above matched with your WP version <br>
