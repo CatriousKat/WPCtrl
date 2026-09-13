@@ -6,11 +6,11 @@ A tool for controlling Windows Phone OS 7.0 and newer. <br>
 | Command | Windows Phone 7.x | Windows Phone 8.x | Windows 10 Mobile |
 | :--- | :---: | :---: | :---: |
 | `getinfo` | ✅ | ✅ | ✅ |
-| `ping` | ❌ | ✅ (only 8.1) | ✅ |
-| `battery` | ❌ | ✅ (only 8.1) | ✅ |
-| `reboot` | ❌ | ✅ (only 8.1) | ✅ |
+| `ping` | ❌ | ✅ (8.1+) | ✅ |
+| `battery` | ❌ | ✅ (8.1+) | ✅ |
+| `reboot` | ❌ | ✅ (8.1+) | ✅ |
 | `ls` | ❌ | ✅ | ✅ |
-| `copy` | ❌ | ✅ (only 8.1) | ✅ |
+| `copy` | ❌ | ✅ (8.1+) | ✅ |
 | `install` | ❌ | ❌ | ✅ |
 | `list-apps` | ❌ | ❌ | ✅ |
 | `uninstall` | ❌ | ❌ | ✅ |
