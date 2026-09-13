@@ -20,7 +20,7 @@ A tool for controlling Windows Phone OS 7.0 and newer. <br>
 | `kill` | ❌ | ❌ | ✅ |
 | `screenshot` | ❌ | ❌ | ✅ |
 <br>
-# Usage
+<h1>Usage</h1>
 <br>
 <strong>Requirements</strong>:
 <li>A PC with Windows 10 or newer</li>
