@@ -21,6 +21,7 @@ A tool for controlling Windows Phone OS 7.0 and newer. <br>
 | `screenshot` | ❌ | ❌ | ✅ |
 <br>
 # Usage
+<br>
 <strong>Requirements</strong>:
 <li>A PC with Windows 10 or newer</li>
 <li>A Microsoft/Nokia Windows Phone with Windows Phone OS 7.0 or newer</li>
