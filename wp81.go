@@ -2,14 +2,11 @@
 package main
 
 import (
-	"bytes"
 	"encoding/json"
 	"fmt"
 	"io"
-	"mime/multipart"
 	"net/http"
 	"os"
-	"path/filepath"
 	"time"
 )
 
@@ -176,170 +173,6 @@ func (c *Client) HandleLs(location string) {
 	}
 
 	fmt.Println(string(bodyBytes))
-}
-
-func (c *Client) HandleInstall(packagePath string) {
-	absPath, err := filepath.Abs(packagePath)
-	if err != nil {
-		fmt.Printf("Error resolving package path: %v\n", err)
-		return
-	}
-
-	file, err := os.Open(absPath)
-	if err != nil {
-		fmt.Printf("Error opening package file '%s': %v\n", packagePath, err)
-		return
-	}
-	defer file.Close()
-
-	fmt.Printf("[*] Uploading and installing package '%s' to device via WDP...\n", filepath.Base(absPath))
-
-	body := &bytes.Buffer{}
-	writer := multipart.NewWriter(body)
-	
-	part, err := writer.CreateFormFile("file", filepath.Base(absPath))
-	if err != nil {
-		fmt.Printf("Error creating form file: %v\n", err)
-		return
-	}
-
-	_, err = io.Copy(part, file)
-	if err != nil {
-		fmt.Printf("Error copying file data: %v\n", err)
-		return
-	}
-
-	err = writer.Close()
-	if err != nil {
-		fmt.Printf("Error closing multipart writer: %v\n", err)
-		return
-	}
-
-	targetURL := fmt.Sprintf("%s/api/taskmanager/app?package=%s", c.BaseURL, filepath.Base(absPath))
-	req, err := http.NewRequest("POST", targetURL, body)
-	if err != nil {
-		fmt.Printf("Error creating HTTP request: %v\n", err)
-		return
-	}
-	
-	req.Header.Set("Content-Type", writer.FormDataContentType())
-
-	resp, err := c.HTTPClient.Do(req)
-	if err != nil {
-		fmt.Printf("Error connecting to device WDP service: %v\n", err)
-		return
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode == http.StatusOK || resp.StatusCode == http.StatusNoContent || resp.StatusCode == http.StatusCreated {
-		fmt.Println("[+] Package successfully installed on device.")
-	} else {
-		respBody, _ := io.ReadAll(resp.Body)
-		fmt.Printf("[-] Installation failed with status code %d: %s\n", resp.StatusCode, string(respBody))
-	}
-}
-
-func (c *Client) HandleListApps() {
-	resp, err := c.HTTPClient.Get(c.BaseURL + "/api/taskmanager/app")
-	if err != nil {
-		fmt.Printf("Error listing applications: %v\n", err)
-		return
-	}
-	defer resp.Body.Close()
-	io.Copy(os.Stdout, resp.Body)
-}
-
-func (c *Client) HandleUninstall(pkg string) {
-	req, err := http.NewRequest(http.MethodDelete, fmt.Sprintf("%s/api/taskmanager/app?package=%s", c.BaseURL, pkg), nil)
-	if err != nil {
-		fmt.Printf("Error creating uninstall request: %v\n", err)
-		return
-	}
-
-	resp, err := c.HTTPClient.Do(req)
-	if err != nil || (resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent) {
-		fmt.Printf("Error uninstalling package %s\n", pkg)
-		return
-	}
-	fmt.Printf("[+] Successfully uninstalled package %s\n", pkg)
-}
-
-func (c *Client) HandleLaunch(aumid string) {
-	resp, err := c.HTTPClient.Post(fmt.Sprintf("%s/api/taskmanager/app?appid=%s", c.BaseURL, aumid), "", nil)
-	if err != nil || (resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent) {
-		fmt.Printf("Error launching app %s\n", aumid)
-		return
-	}
-	fmt.Printf("[+] Launched application %s\n", aumid)
-}
-
-func (c *Client) HandleTerminate(aumid string) {
-	req, err := http.NewRequest(http.MethodDelete, fmt.Sprintf("%s/api/taskmanager/app?appid=%s", c.BaseURL, aumid), nil)
-	if err != nil {
-		fmt.Printf("Error terminating app %s\n", aumid)
-		return
-	}
-
-	resp, err := c.HTTPClient.Do(req)
-	if err != nil || (resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent) {
-		fmt.Printf("Error terminating app %s\n", aumid)
-		return
-	}
-	fmt.Printf("[+] Terminated application %s\n", aumid)
-}
-
-func (c *Client) HandleListProcesses() {
-	resp, err := c.HTTPClient.Get(c.BaseURL + "/api/taskmanager/process")
-	if err != nil {
-		fmt.Printf("Error listing processes: %v\n", err)
-		return
-	}
-	defer resp.Body.Close()
-	io.Copy(os.Stdout, resp.Body)
-}
-
-func (c *Client) HandleKill(pid string) {
-	req, err := http.NewRequest(http.MethodDelete, fmt.Sprintf("%s/api/taskmanager/process?pid=%s", c.BaseURL, pid), nil)
-	if err != nil {
-		fmt.Printf("Error creating kill request: %v\n", err)
-		return
-	}
-
-	resp, err := c.HTTPClient.Do(req)
-	if err != nil || (resp.StatusCode != http.StatusOK && resp.StatusCode != http.StatusNoContent) {
-		fmt.Printf("Error killing process PID %s\n", pid)
-		return
-	}
-	fmt.Printf("[+] Killed process PID %s\n", pid)
-}
-
-func (c *Client) HandleScreenshot(outPath string) {
-	resp, err := c.HTTPClient.Get(c.BaseURL + "/api/extensions/screenshot")
-	if err != nil {
-		fmt.Printf("Error capturing screenshot: %v\n", err)
-		return
-	}
-	defer resp.Body.Close()
-
-	if resp.StatusCode != http.StatusOK {
-		fmt.Printf("Error: Screenshot capture failed (HTTP %d)\n", resp.StatusCode)
-		return
-	}
-
-	out, err := os.Create(outPath)
-	if err != nil {
-		fmt.Printf("Error creating screenshot file: %v\n", err)
-		return
-	}
-	defer out.Close()
-
-	_, err = io.Copy(out, resp.Body)
-	if err != nil {
-		fmt.Printf("Error writing screenshot data: %v\n", err)
-		return
-	}
-
-	fmt.Printf("[+] Screenshot saved successfully to %s\n", outPath)
 }
 
 func (c *Client) HandleReboot() {
