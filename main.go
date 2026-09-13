@@ -20,50 +20,59 @@ func main() {
 	cmd := os.Args[1]
 	client := NewClient()
 
-	// Check if device responds to WDP (Windows Phone 8.1 / Windows 10 Mobile)
+	// Universal device presence validation across WDP and Legacy USB/PnP stacks
 	isWDPOnline := checkWDP(client)
+	isWP7 := false
+	isWP8 := false
 
 	if !isWDPOnline {
-		// Detect whether connected legacy device is Windows Phone 7.x or Windows Phone 8.0
-		isWP7 := detectWP7Device()
+		isWP7 = detectWP7Device()
+		if !isWP7 {
+			isWP8 = detectWP8Device()
+		}
 
-		if isWP7 {
-			// Windows Phone 7.x Legacy Flow
-			switch cmd {
-			case "getinfo":
-				client.HandleWP7GetInfo()
-				return
-			default:
-				fmt.Printf("Error: Command '%s' is not supported.\n", cmd)
+		if !isWP7 && !isWP8 {
+			fmt.Println("Error: No Windows Phone device detected. Please ensure the device is plugged in via USB and unlocked.")
+			os.Exit(1)
+		}
+	}
+
+	if isWP7 {
+		switch cmd {
+		case "getinfo":
+			client.HandleWP7GetInfo()
+			return
+		default:
+			fmt.Printf("Error: Command '%s' is not supported on Windows Phone 7.x (only 'getinfo' is available).\n", cmd)
+			os.Exit(1)
+		}
+	}
+
+	if isWP8 && !isWDPOnline {
+		switch cmd {
+		case "getinfo":
+			client.HandleWP8GetInfo()
+			return
+		case "ls":
+			loc := "\\"
+			if len(os.Args) >= 3 {
+				loc = os.Args[2]
+			}
+			client.HandleWP8Ls(loc)
+			return
+		case "copy":
+			if len(os.Args) < 4 {
+				fmt.Println("Error: Missing arguments for copy.")
+				fmt.Println("Usage (PC to WP8): wpctrl copy local_file.txt Documents\\file.txt")
 				os.Exit(1)
 			}
-		} else {
-			// Windows Phone 8.0 Legacy Flow
-			switch cmd {
-			case "getinfo":
-				client.HandleWP8GetInfo()
-				return
-			case "ls":
-				loc := "\\"
-				if len(os.Args) >= 3 {
-					loc = os.Args[2]
-				}
-				client.HandleWP8Ls(loc)
-				return
-			case "copy":
-				if len(os.Args) < 4 {
-					fmt.Println("Error: Missing arguments for copy.")
-					fmt.Println("Usage (PC to WP8): wpctrl copy local_file.txt Documents\\file.txt")
-					os.Exit(1)
-				}
-				src := os.Args[2]
-				dest := os.Args[3]
-				client.HandleWP8CopyPC(src, dest)
-				return
-			default:
-				fmt.Printf("Error: Command '%s' requires WDP (WP8.1/W10M) or isn't a command.\n", cmd)
-				os.Exit(1)
-			}
+			src := os.Args[2]
+			dest := os.Args[3]
+			client.HandleWP8CopyPC(src, dest)
+			return
+		default:
+			fmt.Printf("Error: Command '%s' requires WDP (WP8.1/W10M) or is not supported on WP8.0 MTP fallback.\n", cmd)
+			os.Exit(1)
 		}
 	}
 
@@ -158,6 +167,16 @@ func checkWDP(c *Client) bool {
 func detectWP7Device() bool {
 	cmd := exec.Command("powershell", "-NoProfile", "-Command", 
 		"Get-PnpDevice -Present | Where-Object {$_.HardwareID -like '*Zune*' -or $_.FriendlyName -like '*Trophy*' -or $_.FriendlyName -like '*Focus*'} | Select-Object -ExpandProperty FriendlyName")
+	out, err := cmd.Output()
+	if err == nil && len(strings.TrimSpace(string(out))) > 0 {
+		return true
+	}
+	return false
+}
+
+func detectWP8Device() bool {
+	cmd := exec.Command("powershell", "-NoProfile", "-Command", 
+		"Get-PnpDevice -Present | Where-Object {$_.Class -eq 'WPD' -or $_.HardwareID -like '*MSFT_WP*'} | Select-Object -ExpandProperty FriendlyName")
 	out, err := cmd.Output()
 	if err == nil && len(strings.TrimSpace(string(out))) > 0 {
 		return true
