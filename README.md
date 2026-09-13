@@ -11,7 +11,7 @@ A tool for controlling Windows Phone OS 7.0 and newer. <br>
 | `reboot` | ❌ | ✅ (8.1+) | ✅ |
 | `ls` | ❌ | ✅ | ✅ |
 | `copy` | ❌ | ✅ (8.1+) | ✅ |
-| `install` | ❌ | ❌ | ✅ |
+| `install` | ❌ | ✅ (8.1+) | ✅ |
 | `list-apps` | ❌ | ❌ | ✅ |
 | `uninstall` | ❌ | ❌ | ✅ |
 | `launch` | ❌ | ❌ | ✅ |
